@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>峰调整工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2196F3;
+            color: white;
+            padding: 15px 20px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .controls {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .file-section {
+            margin-bottom: 20px;
+        }
+
+        .file-path {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: #666;
+            word-break: break-all;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #1976D2;
+        }
+
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #45a049;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .param-control {
+            margin-bottom: 20px;
+        }
+
+        .param-label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .param-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 16px;
+            min-width: 40px;
+        }
+
+        .slider-container {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #2196F3;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #2196F3;
+            cursor: pointer;
+            border: none;
+        }
+
+        input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100px;
+            font-size: 14px;
+        }
+
+        select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        .chart-container {
+            padding: 20px;
+            position: relative;
+            height: 400px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .mode-section {
+            margin-top: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .content {
+                flex-direction: row;
+            }
+
+            .controls {
+                width: 400px;
+                border-bottom: none;
+                border-right: 1px solid #e0e0e0;
+                max-height: calc(100vh - 100px);
+                overflow-y: auto;
+            }
+
+            .chart-container {
+                flex: 1;
+                height: 600px;
+            }
+        }
+
+        @media (max-width: 767px) {
+            .param-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .slider-container {
+                width: 100%;
+            }
+
+            input[type="number"] {
+                width: 100%;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+
+        .alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            animation: slideIn 0.3s;
+        }
+
+        .alert-success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .alert-error {
+            background: #f44336;
+            color: white;
+        }
+
+        .alert-info {
+            background: #2196F3;
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">峰调整工具</div>
+        <div class="content">
+            <div class="controls">
+                <div class="file-section">
+                    <div class="file-path" id="filePath">请先加载数据文件</div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">浏览...</button>
+                        <button class="btn btn-primary" id="saveBtn" disabled onclick="exportData()">保存CSV</button>
+                    </div>
+                    <div class="button-group" style="margin-top: 10px;">
+                        <button class="btn btn-success" id="continueBtn" disabled onclick="savePeakAndContinue()">保存当前峰并添加下一个</button>
+                    </div>
+                    <input type="file" id="fileInput" accept=".csv" onchange="loadFile(event)">
+                </div>
+
+                <div class="param-control">
+                    <label class="param-label">峰高</label>
+                    <div class="param-row">
+                        <button class="btn btn-primary btn-small" id="heightExpandBtn" disabled onclick="expandRange('height')">范围+</button>
+                        <button class="btn btn-primary btn-small" id="heightDecBtn" disabled onclick="adjustParam('height', -0.005)">-</button>
+                        <div class="slider-container">
+                            <input type="range" id="heightSlider" disabled min="0" max="10" step="0.01" value="1">
+                        </div>
+                        <button class="btn btn-primary btn-small" id="heightIncBtn" disabled onclick="adjustParam('height', 0.005)">+</button>
+                        <input type="number" id="heightValue" disabled step="0.01" value="1">
+                    </div>
+                </div>
+
+                <div class="param-control">
+                    <label class="param-label">峰宽</label>
+                    <div class="param-row">
+                        <button class="btn btn-primary btn-small" id="widthExpandBtn" disabled onclick="expandRange('width')">范围+</button>
+                        <button class="btn btn-primary btn-small" id="widthDecBtn" disabled onclick="adjustParam('width', -0.005)">-</button>
+                        <div class="slider-container">
+                            <input type="range" id="widthSlider" disabled min="0.001" max="1" step="0.001" value="0.1">
+                        </div>
+                        <button class="btn btn-primary btn-small" id="widthIncBtn" disabled onclick="adjustParam('width', 0.005)">+</button>
+                        <input type="number" id="widthValue" disabled step="0.001" value="0.1">
+                    </div>
+                </div>
+
+                <div class="param-control">
+                    <label class="param-label">中心位置</label>
+                    <div class="param-row">
+                        <button class="btn btn-primary btn-small" id="centerDecBtn" disabled onclick="adjustParam('center', -0.0005)">-</button>
+                        <div class="slider-container">
+                            <input type="range" id="centerSlider" disabled min="-5" max="5" step="0.001" value="0">
+                        </div>
+                        <button class="btn btn-primary btn-small" id="centerIncBtn" disabled onclick="adjustParam('center', 0.0005)">+</button>
+                        <input type="number" id="centerValue" disabled step="0.001" value="0">
+                    </div>
+                </div>
+
+                <div class="param-control">
+                    <label class="param-label">η (Eta)</label>
+                    <div class="param-row">
+                        <button class="btn btn-primary btn-small" id="etaDecBtn" disabled onclick="adjustParam('eta', -0.005)">-</button>
+                        <div class="slider-container">
+                            <input type="range" id="etaSlider" disabled min="0" max="1" step="0.01" value="0.5">
+                        </div>
+                        <button class="btn btn-primary btn-small" id="etaIncBtn" disabled onclick="adjustParam('eta', 0.005)">+</button>
+                        <input type="number" id="etaValue" disabled step="0.01" value="0.5">
+                    </div>
+                </div>
+
+                <div class="mode-section">
+                    <label class="param-label">加/减峰模式</label>
+                    <select id="modeSelect" disabled onchange="updatePlot()">
+                        <option value="add">加峰 (y + y_peak)</option>
+                        <option value="subtract">减峰 (y - y_peak)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let x = [];
+        let originalY = [];
+        let currentY = [];
+        let dataLoaded = false;
+        let originalFilename = '';
+        let peakHistory = [];
+        
+        let params = {
+            height: 1.0,
+            width: 0.1,
+            center: 0.0,
+            eta: 0.5,
+            mode: 'add'
+        };
+
+        let ranges = {
+            height: { min: 0, max: 10 },
+            width: { min: 0.001, max: 1 },
+            center: { min: -5, max: 5 }
+        };
+
+        let chart = null;
+
+        function initChart() {
+            const ctx = document.getElementById('chart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '原始',
+                        data: [],
+                        borderColor: 'rgb(33, 150, 243)',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 0
+                    }, {
+                        label: '叠加',
+                        data: [],
+                        borderColor: 'rgb(244, 67, 54)',
+                        backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '请先加载数据文件'
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'X'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Y'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            originalFilename = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const csv = e.target.result;
+                    const parsed = Papa.parse(csv, { 
+                        dynamicTyping: true,
+                        skipEmptyLines: true
+                    });
+                    
+                    const data = parsed.data;
+                    if (!data || data.length < 2) {
+                        showAlert('数据文件无效或为空', 'error');
+                        return;
+                    }
+
+                    x = data.map(row => row[0]).filter(v => !isNaN(v));
+                    originalY = data.map(row => row[1]).filter(v => !isNaN(v));
+                    
+                    if (x.length === 0 || originalY.length === 0) {
+                        showAlert('数据文件无效或为空', 'error');
+                        return;
+                    }
+
+                    currentY = [...originalY];
+                    dataLoaded = true;
+                    peakHistory = [];
+
+                    document.getElementById('filePath').textContent = file.name;
+
+                    const yMax = Math.max(...originalY);
+                    const yMin = Math.min(...originalY);
+                    const xMax = Math.max(...x);
+                    const xMin = Math.min(...x);
+                    const xRange = xMax - xMin;
+
+                    params.height = yMax * 0.5;
+                    params.width = 0.1 * xRange;
+                    params.center = (xMax + xMin) / 2;
+                    params.eta = 0.5;
+
+                    ranges.height = { min: 0, max: Math.max(yMax * 2, 1) };
+                    ranges.width = { min: 0.001, max: Math.max(0.2 * xRange, 0.1) };
+                    ranges.center = { min: xMin, max: xMax };
+
+                    updateUIControls();
+                    enableAllControls();
+                    updatePlot();
+                    
+                    showAlert('数据加载成功', 'success');
+                } catch (error) {
+                    showAlert('加载文件时出错：' + error.message, 'error');
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+        function updateUIControls() {
+            document.getElementById('heightSlider').min = ranges.height.min;
+            document.getElementById('heightSlider').max = ranges.height.max;
+            document.getElementById('heightSlider').value = params.height;
+            document.getElementById('heightValue').value = params.height.toFixed(4);
+
+            document.getElementById('widthSlider').min = ranges.width.min;
+            document.getElementById('widthSlider').max = ranges.width.max;
+            document.getElementById('widthSlider').value = params.width;
+            document.getElementById('widthValue').value = params.width.toFixed(4);
+
+            document.getElementById('centerSlider').min = ranges.center.min;
+            document.getElementById('centerSlider').max = ranges.center.max;
+            document.getElementById('centerSlider').value = params.center;
+            document.getElementById('centerValue').value = params.center.toFixed(4);
+
+            document.getElementById('etaSlider').value = params.eta;
+            document.getElementById('etaValue').value = params.eta.toFixed(4);
+        }
+
+        function enableAllControls() {
+            const controls = [
+                'heightExpandBtn', 'heightDecBtn', 'heightIncBtn', 'heightSlider', 'heightValue',
+                'widthExpandBtn', 'widthDecBtn', 'widthIncBtn', 'widthSlider', 'widthValue',
+                'centerDecBtn', 'centerIncBtn', 'centerSlider', 'centerValue',
+                'etaDecBtn', 'etaIncBtn', 'etaSlider', 'etaValue',
+                'modeSelect', 'saveBtn', 'continueBtn'
+            ];
+            
+            controls.forEach(id => {
+                document.getElementById(id).disabled = false;
+            });
+
+            linkSliderEdit('height');
+            linkSliderEdit('width');
+            linkSliderEdit('center');
+            linkSliderEdit('eta');
+        }
+
+        function linkSliderEdit(field) {
+            const slider = document.getElementById(field + 'Slider');
+            const input = document.getElementById(field + 'Value');
+            
+            slider.oninput = function() {
+                params[field] = parseFloat(this.value);
+                input.value = params[field].toFixed(4);
+                updatePlot();
+            };
+            
+            input.oninput = function() {
+                const val = parseFloat(this.value);
+                if (!isNaN(val)) {
+                    params[field] = val;
+                    slider.value = val;
+                    updatePlot();
+                }
+            };
+        }
+
+        function calculatePeak() {
+            const h = params.height;
+            const w = params.width;
+            const c = params.center;
+            const eta = params.eta;
+            
+            return x.map(xi => {
+                const gaussian = h * Math.exp(-Math.pow(xi - c, 2) / (2 * Math.pow(w, 2)));
+                const lorentzian = h / (1 + Math.pow((xi - c) / w, 2));
+                return (1 - eta) * gaussian + eta * lorentzian;
+            });
+        }
+
+        function updatePlot() {
+            if (!dataLoaded) return;
+
+            const yPeak = calculatePeak();
+            const yNew = currentY.map((y, i) => 
+                params.mode === 'add' ? y + yPeak[i] : y - yPeak[i]
+            );
+
+            chart.data.labels = x;
+            chart.data.datasets[0].data = originalY;
+            chart.data.datasets[1].data = yNew;
+            chart.options.plugins.title.text = document.getElementById('filePath').textContent;
+            chart.update();
+        }
+
+        function adjustParam(field, delta) {
+            params[field] = params[field] * (1 + delta);
+            
+            const slider = document.getElementById(field + 'Slider');
+            const input = document.getElementById(field + 'Value');
+            slider.value = params[field];
+            input.value = params[field].toFixed(4);
+            
+            updatePlot();
+        }
+
+        function expandRange(field) {
+            const range = ranges[field].max - ranges[field].min;
+            ranges[field].max = ranges[field].max + 0.1 * range;
+            
+            const slider = document.getElementById(field + 'Slider');
+            slider.max = ranges[field].max;
+        }
+
+        function savePeakAndContinue() {
+            if (!dataLoaded) {
+                showAlert('请先加载数据文件', 'error');
+                return;
+            }
+
+            peakHistory.push({...params});
+
+            const yPeak = calculatePeak();
+            currentY = currentY.map((y, i) => 
+                params.mode === 'add' ? y + yPeak[i] : y - yPeak[i]
+            );
+
+            showAlert(`第${peakHistory.length}个峰已保存，请调整参数添加下一个峰`, 'info');
+
+            const yMax = Math.max(...currentY);
+            params.height = yMax * 0.3;
+            ranges.height.max = yMax * 2;
+            
+            updateUIControls();
+            updatePlot();
+        }
+
+        function exportData() {
+            if (!dataLoaded) {
+                showAlert('请先加载数据文件', 'error');
+                return;
+            }
+
+            const yPeak = calculatePeak();
+            const finalY = currentY.map((y, i) => 
+                params.mode === 'add' ? y + yPeak[i] : y - yPeak[i]
+            );
+
+            let csv = '';
+            for (let i = 0; i < x.length; i++) {
+                csv += `${x[i]},${finalY[i]}\n`;
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const filename = originalFilename.replace('.csv', '') + '_editpeak.csv';
+            a.href = url;
+            a.download = filename;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+            
+            saveLogFiles(finalY);
+            showAlert('数据已保存', 'success');
+        }
+
+        function saveLogFiles(finalY) {
+            const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '').split('.')[0];
+            
+            // 保存原始数据
+            let oriCsv = '';
+            for (let i = 0; i < x.length; i++) {
+                oriCsv += `${x[i]},${originalY[i]}\n`;
+            }
+            downloadFile(oriCsv, `${timestamp}_ori.csv`);
+
+            // 保存编辑后数据
+            let editCsv = '';
+            for (let i = 0; i < x.length; i++) {
+                editCsv += `${x[i]},${finalY[i]}\n`;
+            }
+            downloadFile(editCsv, `${timestamp}_edit.csv`);
+
+            // 保存参数文件
+            let paramTxt = 'Peak Editing Parameters Log\n';
+            paramTxt += `Generated: ${new Date().toLocaleString()}\n`;
+            paramTxt += `Original File: ${originalFilename}\n`;
+            paramTxt += `Total Peaks Modified: ${peakHistory.length}\n\n`;
+            
+            peakHistory.forEach((peak, i) => {
+                paramTxt += `========peak${i + 1}=========\n`;
+                paramTxt += `Peak Mode: ${peak.mode === 'add' ? 'Add Peak' : 'Subtract Peak'}\n`;
+                paramTxt += `Peak Height: ${peak.height.toFixed(6)}\n`;
+                paramTxt += `Peak Width: ${peak.width.toFixed(6)}\n`;
+                paramTxt += `Center Position: ${peak.center.toFixed(6)}\n`;
+                paramTxt += `Eta (η): ${peak.eta.toFixed(6)}\n\n`;
+            });
+            
+            downloadFile(paramTxt, `${timestamp}_param.txt`);
+        }
+
+        function downloadFile(content, filename) {
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            document.body.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 3000);
+        }
+
+        document.getElementById('modeSelect').onchange = function() {
+            params.mode = this.value;
+            updatePlot();
+        };
+
+        initChart();
+    </script>
+</body>
+</html>
